@@ -570,6 +570,7 @@ export default function App() {
   const [showLanding, setShowLanding] = useState(true);
 
   const handleEnter = () => {
+    setView("add");
     setPhase("app");
     setTimeout(() => setShowLanding(false), 800);
   };
