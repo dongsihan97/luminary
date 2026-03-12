@@ -22,6 +22,10 @@ async function insertQuote(quote) {
   await supabase.from("quotes").insert({ ...rest, added_at: addedAt });
 }
 
+async function deleteQuote(id) {
+  await supabase.from("quotes").delete().eq("id", id);
+}
+
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -64,15 +68,36 @@ function Tag({ label, active, onClick, removable, onRemove }) {
   );
 }
 
-function QuoteCard({ quote, featured }) {
+function QuoteCard({ quote, featured, onDelete }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
+        position: "relative",
         borderTop: featured ? "2px solid #1a1a1a" : "1px solid #e8e8e8",
         padding: featured ? "32px 0 28px" : "24px 0",
         transition: "opacity 0.2s",
       }}
     >
+      {onDelete && hovered && (
+        <button
+          onClick={() => onDelete(quote.id)}
+          style={{
+            position: "absolute", top: 12, right: 12,
+            background: "none", border: "none", cursor: "pointer",
+            fontFamily: "'DM Mono', monospace", fontSize: 10,
+            letterSpacing: "0.08em", textTransform: "uppercase",
+            color: "#bbb", padding: "2px 6px",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = "#1a1a1a"}
+          onMouseLeave={e => e.currentTarget.style.color = "#bbb"}
+        >
+          delete
+        </button>
+      )}
       {featured && (
         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#999", marginBottom: 16 }}>
           ✦ Today's Quote
@@ -109,7 +134,7 @@ function QuoteCard({ quote, featured }) {
 
 // ─── Views ───────────────────────────────────────────────────────────────────
 
-function LibraryView({ quotes }) {
+function LibraryView({ quotes, onDelete }) {
   const [filter, setFilter] = useState(null);
   const [randomQuote, setRandomQuote] = useState(null);
 
@@ -149,7 +174,7 @@ function LibraryView({ quotes }) {
       )}
 
       <div>
-        {filtered.map(q => <QuoteCard key={q.id} quote={q} />)}
+        {filtered.map(q => <QuoteCard key={q.id} quote={q} onDelete={onDelete} />)}
       </div>
     </div>
   );
@@ -585,6 +610,11 @@ export default function App() {
     setView("library");
   };
 
+  const handleDelete = async (id) => {
+    await deleteQuote(id);
+    setQuotes(quotes.filter(q => q.id !== id));
+  };
+
   const navItems = [
     { key: "library", label: "Library" },
     { key: "add", label: "Add Quote" },
@@ -720,7 +750,7 @@ export default function App() {
 
         {/* Main */}
         <main className="luminary-main" style={{ margin: "0 auto", padding: "48px 24px 96px", position: "relative", zIndex: 1 }}>
-          {view === "library" && <LibraryView quotes={quotes} />}
+          {view === "library" && <LibraryView quotes={quotes} onDelete={handleDelete} />}
           {view === "add" && <AddView onAdd={addQuote} />}
           {view === "ask" && <AskView quotes={quotes} />}
         </main>
