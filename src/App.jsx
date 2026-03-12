@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -462,12 +462,117 @@ ${quotesContext}`;
   );
 }
 
+// ─── Landing View ────────────────────────────────────────────────────────────
+
+const GHOST_WORDS = [
+  "resilience", "love", "philosophy", "creativity", "leadership",
+  "wisdom", "courage", "clarity", "work", "life",
+  "stillness", "becoming", "enough", "wonder", "truth",
+  "grace", "depth", "time", "presence", "meaning",
+  "light", "solitude",
+];
+
+function LandingView({ onEnter }) {
+  const words = useMemo(() => {
+    return GHOST_WORDS.map((word) => ({
+      word,
+      top: 5 + Math.random() * 88,
+      left: 3 + Math.random() * 92,
+      lo: (0.04 + Math.random() * 0.05).toFixed(3),
+      hi: (0.10 + Math.random() * 0.08).toFixed(3),
+      fontSize: 9 + Math.floor(Math.random() * 5),
+      duration: (6 + Math.random() * 8).toFixed(1),
+      delay: (Math.random() * 6).toFixed(1),
+    }));
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {/* Ghost words */}
+      {words.map(({ word, top, left, lo, hi, fontSize, duration, delay }) => (
+        <span
+          key={word}
+          style={{
+            position: "absolute",
+            top: `${top}%`,
+            left: `${left}%`,
+            fontFamily: "'DM Mono', monospace",
+            fontSize,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: "#555",
+            "--lo": lo,
+            "--hi": hi,
+            animation: `shimmer ${duration}s ease-in-out ${delay}s infinite`,
+            pointerEvents: "none",
+            userSelect: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {word}
+        </span>
+      ))}
+
+      {/* Center content */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 16, textAlign: "center" }}>
+        <div style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 52,
+          fontWeight: 400,
+          color: "#555",
+          letterSpacing: "0.02em",
+          lineHeight: 1,
+        }}>
+          luminary
+        </div>
+        <div style={{
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 10,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "#999",
+        }}>
+          a personal wisdom library
+        </div>
+        <button
+          onClick={onEnter}
+          style={{
+            marginTop: 8,
+            background: "none",
+            border: "1px solid #d4d4d4",
+            cursor: "pointer",
+            padding: "10px 28px",
+            fontFamily: "'DM Mono', monospace",
+            fontSize: 11,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "#666",
+            borderRadius: 2,
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = "#1a1a1a"; e.currentTarget.style.color = "#1a1a1a"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "#d4d4d4"; e.currentTarget.style.color = "#666"; }}
+        >
+          enter →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── App Shell ───────────────────────────────────────────────────────────────
 
 export default function App() {
   const [quotes, setQuotes] = useState([]);
   const [view, setView] = useState("library");
   const [loaded, setLoaded] = useState(false);
+  const [phase, setPhase] = useState("landing"); // 'landing' | 'app'
+  const [showLanding, setShowLanding] = useState(true);
+
+  const handleEnter = () => {
+    setPhase("app");
+    setTimeout(() => setShowLanding(false), 800);
+  };
 
   useEffect(() => {
     loadQuotes().then(q => { setQuotes(q); setLoaded(true); });
@@ -504,6 +609,11 @@ export default function App() {
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 2px; }
+
+        @keyframes shimmer {
+          0%, 100% { opacity: var(--lo); transform: translateY(0); }
+          50% { opacity: var(--hi); transform: translateY(-6px); }
+        }
 
         @media (max-width: 600px) {
           .luminary-header-inner { padding: 0 16px !important; }
@@ -552,7 +662,13 @@ export default function App() {
       <div className="light-orb" />
       <div className="light-orb orb2" />
 
-      <div style={{ minHeight: "100vh", background: "#fafaf8" }}>
+      {showLanding && (
+        <div style={{ opacity: phase === "app" ? 0 : 1, transition: "opacity 0.6s ease", pointerEvents: phase === "app" ? "none" : "auto" }}>
+          <LandingView onEnter={handleEnter} />
+        </div>
+      )}
+
+      <div style={{ minHeight: "100vh", background: "#fafaf8", opacity: phase === "app" ? 1 : 0, transition: "opacity 0.6s ease 0.2s" }}>
         {/* Header */}
         <header style={{
           borderBottom: "1px solid #e8e8e8",
@@ -562,7 +678,7 @@ export default function App() {
           zIndex: 100,
           backdropFilter: "blur(8px)",
         }}>
-          <div className="luminary-header-inner" style={{ maxWidth: 720, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
+          <div className="luminary-header-inner" style={{ margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
             <div style={{
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: 20,
@@ -602,7 +718,7 @@ export default function App() {
         </header>
 
         {/* Main */}
-        <main className="luminary-main" style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px 96px", position: "relative", zIndex: 1 }}>
+        <main className="luminary-main" style={{ margin: "0 auto", padding: "48px 24px 96px", position: "relative", zIndex: 1 }}>
           {view === "library" && <LibraryView quotes={quotes} />}
           {view === "add" && <AddView onAdd={addQuote} />}
           {view === "ask" && <AskView quotes={quotes} />}
