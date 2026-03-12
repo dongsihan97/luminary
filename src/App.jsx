@@ -1,24 +1,25 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const PRESET_TAGS = ["Resilience", "Love", "Work", "Philosophy", "Creativity", "Leadership", "Life", "Wisdom", "Courage", "Clarity"];
 
-const STORAGE_KEY = "wisdom-quotes-v1";
-
 async function loadQuotes() {
-  try {
-    const result = await window.storage.get(STORAGE_KEY);
-    return result ? JSON.parse(result.value) : [];
-  } catch {
-    return [];
-  }
+  const { data, error } = await supabase
+    .from("quotes")
+    .select("*")
+    .order("added_at", { ascending: false });
+  if (error) return [];
+  return data.map(({ added_at, ...rest }) => ({ ...rest, addedAt: added_at }));
 }
 
-async function saveQuotes(quotes) {
-  try {
-    await window.storage.set(STORAGE_KEY, JSON.stringify(quotes));
-  } catch (e) {
-    console.error("Storage error", e);
-  }
+async function insertQuote(quote) {
+  const { addedAt, ...rest } = quote;
+  await supabase.from("quotes").insert({ ...rest, added_at: addedAt });
 }
 
 function generateId() {
@@ -473,9 +474,8 @@ export default function App() {
   }, []);
 
   const addQuote = async (quote) => {
-    const updated = [quote, ...quotes];
-    setQuotes(updated);
-    await saveQuotes(updated);
+    await insertQuote(quote);
+    setQuotes([quote, ...quotes]);
     setView("library");
   };
 
@@ -498,7 +498,7 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=DM+Mono:wght@400;500&display=swap');
         * { box-sizing: border-box; }
-        body { margin: 0; background: #fafaf8; }
+        body { margin: 0; background: #fafaf8; overflow-y: scroll; }
         textarea, input { font-size: 16px; }
         textarea:focus, input:focus { border-color: #1a1a1a !important; }
         ::-webkit-scrollbar { width: 4px; }
@@ -507,7 +507,8 @@ export default function App() {
 
         @media (max-width: 600px) {
           .luminary-header-inner { padding: 0 16px !important; }
-          .luminary-nav button { padding: 8px 10px !important; font-size: 10px !important; letter-spacing: 0.05em !important; }
+          .luminary-nav { flex-wrap: wrap; justify-content: flex-end; }
+          .luminary-nav button { padding: 6px 8px !important; font-size: 10px !important; letter-spacing: 0.05em !important; }
           .luminary-main { padding: 32px 16px 80px !important; }
         }
 
@@ -518,16 +519,16 @@ export default function App() {
           border-radius: 50%;
           pointer-events: none;
           z-index: 0;
-          background: radial-gradient(circle at center, rgba(255,220,120,0.18) 0%, rgba(255,180,60,0.08) 45%, transparent 70%);
-          filter: blur(18px);
-          animation: bounce-light 18s ease-in-out infinite alternate;
+          background: radial-gradient(circle at center, rgba(245,235,210,0.10) 0%, rgba(220,200,170,0.05) 45%, transparent 70%);
+          filter: blur(28px);
+          animation: bounce-light 50s ease-in-out infinite alternate;
         }
         .light-orb.orb2 {
           width: 220px;
           height: 220px;
-          background: radial-gradient(circle at center, rgba(200,230,255,0.15) 0%, rgba(150,200,255,0.07) 45%, transparent 70%);
-          animation: bounce-light2 24s ease-in-out infinite alternate;
-          animation-delay: -8s;
+          background: radial-gradient(circle at center, rgba(180,185,210,0.08) 0%, rgba(140,150,190,0.04) 45%, transparent 70%);
+          animation: bounce-light2 70s ease-in-out infinite alternate;
+          animation-delay: -22s;
         }
         @keyframes bounce-light {
           0%   { transform: translate(8vw, 12vh); }
@@ -586,7 +587,7 @@ export default function App() {
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
                     color: view === item.key ? "#1a1a1a" : "#aaa",
-                    borderBottom: view === item.key ? "2px solid #1a1a1a" : "2px solid transparent",
+                    borderBottom: view === item.key ? "1px solid rgba(26,26,26,0.35)" : "1px solid transparent",
                     transition: "all 0.15s",
                   }}
                 >
