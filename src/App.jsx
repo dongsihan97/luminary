@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
+import ArtView from "./ArtView.jsx";
+import { loadArtEntries } from "./artService.js";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -298,15 +300,50 @@ function AddView({ onAdd }) {
   );
 }
 
-function AskView({ quotes }) {
+function ArtSource({ entry }) {
+  const hasArtist = entry.artist_name || entry.title;
+  const date = new Date(entry.encountered_at).toLocaleDateString("en-US", {
+    day: "numeric", month: "long", year: "numeric",
+  });
+  const whenWhere = [entry.venue_name, date].filter(Boolean).join(" · ");
+
+  return (
+    <div style={{ padding: "20px 0", borderTop: "1px solid #f0f0f0" }}>
+      {entry.photo_thumb_url && (
+        <img
+          src={entry.photo_thumb_url}
+          alt={entry.title || "Art encounter"}
+          style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 2, display: "block", marginBottom: 14 }}
+        />
+      )}
+      {hasArtist && (
+        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, color: "#1a1a1a", marginBottom: 6 }}>
+          {entry.title && <span style={{ fontStyle: "italic" }}>{entry.title}</span>}
+          {entry.artist_name && entry.title && <span style={{ color: "#bbb" }}> — </span>}
+          {entry.artist_name && <span>{entry.artist_name}</span>}
+        </div>
+      )}
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.07em", textTransform: "uppercase", color: "#aaa", marginBottom: 10 }}>
+        {whenWhere}
+      </div>
+      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, fontStyle: "italic", color: "#555", lineHeight: 1.6 }}>
+        "{entry.emotional_reaction}"
+      </div>
+    </div>
+  );
+}
+
+function AskView({ quotes, artEntries }) {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [answer, setAnswer] = useState(null);
   const [error, setError] = useState(null);
   const answerRef = useRef(null);
 
+  const hasLibrary = quotes.length > 0 || artEntries.length > 0;
+
   const ask = async () => {
-    if (!question.trim() || quotes.length === 0) return;
+    if (!question.trim() || !hasLibrary) return;
     setLoading(true);
     setAnswer(null);
     setError(null);
@@ -315,17 +352,29 @@ function AskView({ quotes }) {
       `[Quote ${i + 1}] "${q.text}" — ${q.author}${q.source ? `, ${q.source}` : ""}`
     ).join("\n\n");
 
-    const systemPrompt = `You are a personal wisdom guide who speaks ONLY through the user's own curated quote library. 
+    const artContext = artEntries.map((a, i) => {
+      const parts = [`[Art ${i + 1}] Emotional reaction: "${a.emotional_reaction}"`];
+      if (a.artist_name || a.title) parts.push(`Work: ${[a.artist_name, a.title].filter(Boolean).join(", ")}`);
+      if (a.wisdom_distillation) parts.push(`Distilled wisdom: "${a.wisdom_distillation}"`);
+      if (a.mood_tags?.length) parts.push(`Mood: ${a.mood_tags.join(", ")}`);
+      if (a.life_context) parts.push(`Life context: "${a.life_context}"`);
+      return parts.join(" | ");
+    }).join("\n\n");
+
+    const systemPrompt = `You are a personal wisdom guide who speaks ONLY through the user's own curated library of quotes and art encounters.
 
 Your rules:
-1. Answer the user's question using ONLY the quotes provided below. Do not use any outside knowledge or general advice.
-2. Synthesize a thoughtful, personal response drawing from the relevant quotes.
-3. At the end of your answer, list the exact quote numbers you drew from (e.g. "Sources: Quote 3, Quote 7").
+1. Answer the user's question using ONLY the quotes and art encounters provided below. Do not use any outside knowledge or general advice.
+2. Synthesize a thoughtful, personal response drawing from whichever sources are most relevant — quotes, art, or both.
+3. At the end of your answer, list the exact sources you drew from using this format: "Sources: Quote 3, Art 1, Quote 7" (use the exact labels).
 4. If the library doesn't contain relevant wisdom for this question, honestly say so — do not fabricate or generalize.
 5. Keep your tone warm, reflective, and direct.
 
-THE LIBRARY:
-${quotesContext}`;
+QUOTES:
+${quotesContext || "(none)"}
+
+ART ENCOUNTERS:
+${artContext || "(none)"}`;
 
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -349,15 +398,16 @@ ${quotesContext}`;
 
       const rawText = data.content?.map(b => b.text || "").join("") || "";
 
-      // Parse sources from the response
-      const sourceMatch = rawText.match(/Sources?:\s*(Quote[^.]+)/i);
-      const usedNums = sourceMatch
-        ? [...sourceMatch[1].matchAll(/Quote (\d+)/gi)].map(m => parseInt(m[1]) - 1)
-        : [];
+      const sourceMatch = rawText.match(/Sources?:\s*([^.\n]+)/i);
+      const sourceStr = sourceMatch ? sourceMatch[1] : "";
+
+      const usedQuoteNums = [...sourceStr.matchAll(/Quote (\d+)/gi)].map(m => parseInt(m[1]) - 1);
+      const usedArtNums = [...sourceStr.matchAll(/Art (\d+)/gi)].map(m => parseInt(m[1]) - 1);
 
       setAnswer({
-        text: rawText.replace(/Sources?:\s*Quote[^.]+\.?/i, "").trim(),
-        usedQuotes: usedNums.map(i => quotes[i]).filter(Boolean),
+        text: rawText.replace(/Sources?:\s*[^.\n]+\.?/i, "").trim(),
+        usedQuotes: usedQuoteNums.map(i => quotes[i]).filter(Boolean),
+        usedArt: usedArtNums.map(i => artEntries[i]).filter(Boolean),
       });
 
       setTimeout(() => answerRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -368,11 +418,11 @@ ${quotesContext}`;
     }
   };
 
-  if (quotes.length === 0) {
+  if (!hasLibrary) {
     return (
       <div style={{ textAlign: "center", padding: "80px 0", color: "#bbb" }}>
         <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontStyle: "italic", marginBottom: 8 }}>
-          Add quotes first.
+          Add quotes or art first.
         </div>
         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
           Your library needs wisdom before it can answer.
@@ -380,6 +430,11 @@ ${quotesContext}`;
       </div>
     );
   }
+
+  const libraryDesc = [
+    quotes.length > 0 && `${quotes.length} quote${quotes.length !== 1 ? "s" : ""}`,
+    artEntries.length > 0 && `${artEntries.length} art encounter${artEntries.length !== 1 ? "s" : ""}`,
+  ].filter(Boolean).join(" and ");
 
   return (
     <div>
@@ -391,7 +446,7 @@ ${quotesContext}`;
         marginBottom: 28,
         lineHeight: 1.6,
       }}>
-        Ask anything. Only your {quotes.length} saved quote{quotes.length !== 1 ? "s" : ""} will answer.
+        Ask anything. Only your {libraryDesc} will answer.
       </div>
 
       <textarea
@@ -460,16 +515,13 @@ ${quotesContext}`;
               {answer.text}
             </div>
 
-            {answer.usedQuotes.length > 0 && (
+            {(answer.usedQuotes.length > 0 || answer.usedArt?.length > 0) && (
               <div style={{ marginTop: 36 }}>
                 <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#bbb", marginBottom: 16 }}>
                   Sources used
                 </div>
                 {answer.usedQuotes.map(q => (
-                  <div key={q.id} style={{
-                    padding: "16px 0",
-                    borderTop: "1px solid #f0f0f0",
-                  }}>
+                  <div key={q.id} style={{ padding: "16px 0", borderTop: "1px solid #f0f0f0" }}>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, fontStyle: "italic", color: "#444", lineHeight: 1.55 }}>
                       "{q.text}"
                     </div>
@@ -478,6 +530,7 @@ ${quotesContext}`;
                     </div>
                   </div>
                 ))}
+                {answer.usedArt?.map(a => <ArtSource key={a.id} entry={a} />)}
               </div>
             )}
           </div>
@@ -589,6 +642,7 @@ function LandingView({ onEnter }) {
 
 export default function App() {
   const [quotes, setQuotes] = useState([]);
+  const [artEntries, setArtEntries] = useState([]);
   const [view, setView] = useState("library");
   const [loaded, setLoaded] = useState(false);
   const [phase, setPhase] = useState("landing"); // 'landing' | 'app'
@@ -601,7 +655,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadQuotes().then(q => { setQuotes(q); setLoaded(true); });
+    Promise.all([loadQuotes(), loadArtEntries()]).then(([q, a]) => {
+      setQuotes(q);
+      setArtEntries(a);
+      setLoaded(true);
+    });
   }, []);
 
   const addQuote = async (quote) => {
@@ -619,6 +677,7 @@ export default function App() {
     { key: "library", label: "Library" },
     { key: "add", label: "Add Quote" },
     { key: "ask", label: "Ask" },
+    { key: "art", label: "Art" },
   ];
 
   if (!loaded) {
@@ -752,7 +811,15 @@ export default function App() {
         <main className="luminary-main" style={{ margin: "0 auto", padding: "48px 24px 96px", position: "relative", zIndex: 1 }}>
           {view === "library" && <LibraryView quotes={quotes} onDelete={handleDelete} />}
           {view === "add" && <AddView onAdd={addQuote} />}
-          {view === "ask" && <AskView quotes={quotes} />}
+          {view === "ask" && <AskView quotes={quotes} artEntries={artEntries} />}
+          {view === "art" && (
+            <ArtView
+              entries={artEntries}
+              onEntryAdded={(entry) => setArtEntries([entry, ...artEntries])}
+              onEntryUpdated={(entry) => setArtEntries(artEntries.map(e => e.id === entry.id ? entry : e))}
+              onEntryDeleted={(id) => setArtEntries(artEntries.filter(e => e.id !== id))}
+            />
+          )}
         </main>
       </div>
     </>
