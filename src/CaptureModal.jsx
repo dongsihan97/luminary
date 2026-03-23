@@ -165,10 +165,9 @@ export default function CaptureModal({ onClose, onSaved, entry }) {
       // Upload new photos only if a new file was selected
       if (photo) {
         const entryId = isEditing ? entry.id : crypto.randomUUID();
-        const thumbBlob = await generateThumbnail(photo, 400);
         try {
           [thumbUrl, fullUrl] = await Promise.all([
-            uploadArtPhoto(thumbBlob, entryId, "thumb"),
+            uploadArtPhoto(photo, entryId, "thumb"),
             uploadArtPhoto(photo, entryId, "full"),
           ]);
         } catch (storageErr) {

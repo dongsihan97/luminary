@@ -309,9 +309,9 @@ function ArtSource({ entry }) {
 
   return (
     <div style={{ padding: "20px 0", borderTop: "1px solid #f0f0f0" }}>
-      {entry.photo_thumb_url && (
+      {(entry.photo_full_url || entry.photo_thumb_url) && (
         <img
-          src={entry.photo_thumb_url}
+          src={entry.photo_full_url || entry.photo_thumb_url}
           alt={entry.title || "Art encounter"}
           style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 2, display: "block", marginBottom: 14 }}
         />
@@ -540,6 +540,239 @@ ${artContext || "(none)"}`;
   );
 }
 
+// ─── Home View ───────────────────────────────────────────────────────────────
+
+function HomeView({ quotes, artEntries }) {
+  const [featuredQuote] = useState(() =>
+    quotes.length > 0 ? quotes[Math.floor(Math.random() * quotes.length)] : null
+  );
+  const [featuredArt] = useState(() =>
+    artEntries.length > 0 ? artEntries[Math.floor(Math.random() * artEntries.length)] : null
+  );
+
+  const [question, setQuestion] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [answer, setAnswer] = useState(null);
+  const [error, setError] = useState(null);
+  const answerRef = useRef(null);
+
+  const hasLibrary = quotes.length > 0 || artEntries.length > 0;
+
+  const ask = async () => {
+    if (!question.trim() || !hasLibrary) return;
+    setLoading(true);
+    setAnswer(null);
+    setError(null);
+
+    const quotesContext = quotes.map((q, i) =>
+      `[Quote ${i + 1}] "${q.text}" — ${q.author}${q.source ? `, ${q.source}` : ""}`
+    ).join("\n\n");
+
+    const artContext = artEntries.map((a, i) => {
+      const parts = [`[Art ${i + 1}] Emotional reaction: "${a.emotional_reaction}"`];
+      if (a.artist_name || a.title) parts.push(`Work: ${[a.artist_name, a.title].filter(Boolean).join(", ")}`);
+      if (a.wisdom_distillation) parts.push(`Distilled wisdom: "${a.wisdom_distillation}"`);
+      if (a.mood_tags?.length) parts.push(`Mood: ${a.mood_tags.join(", ")}`);
+      if (a.life_context) parts.push(`Life context: "${a.life_context}"`);
+      return parts.join(" | ");
+    }).join("\n\n");
+
+    const systemPrompt = `You are a personal wisdom guide who speaks ONLY through the user's own curated library of quotes and art encounters.
+
+Your rules:
+1. Answer the user's question using ONLY the quotes and art encounters provided below. Do not use any outside knowledge or general advice.
+2. Synthesize a thoughtful, personal response drawing from whichever sources are most relevant — quotes, art, or both.
+3. At the end of your answer, list the exact sources you drew from using this format: "Sources: Quote 3, Art 1, Quote 7" (use the exact labels).
+4. If the library doesn't contain relevant wisdom for this question, honestly say so — do not fabricate or generalize.
+5. Keep your tone warm, reflective, and direct.
+
+QUOTES:
+${quotesContext || "(none)"}
+
+ART ENCOUNTERS:
+${artContext || "(none)"}`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: [{ role: "user", content: question }],
+        }),
+      });
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      const rawText = data.content?.map(b => b.text || "").join("") || "";
+      const sourceMatch = rawText.match(/Sources?:\s*([^.\n]+)/i);
+      const sourceStr = sourceMatch ? sourceMatch[1] : "";
+      const usedQuoteNums = [...sourceStr.matchAll(/Quote (\d+)/gi)].map(m => parseInt(m[1]) - 1);
+      const usedArtNums = [...sourceStr.matchAll(/Art (\d+)/gi)].map(m => parseInt(m[1]) - 1);
+
+      setAnswer({
+        text: rawText.replace(/Sources?:\s*[^.\n]+\.?/i, "").trim(),
+        usedQuotes: usedQuoteNums.map(i => quotes[i]).filter(Boolean),
+        usedArt: usedArtNums.map(i => artEntries[i]).filter(Boolean),
+      });
+
+      setTimeout(() => answerRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch (e) {
+      setError(e.message || "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const hasBoth = featuredQuote && featuredArt;
+
+  return (
+    <div>
+      {/* Featured pairing */}
+      {(featuredQuote || featuredArt) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: hasBoth ? "repeat(auto-fit, minmax(280px, 1fr))" : "1fr",
+          gap: 48,
+          marginBottom: 72,
+          alignItems: "start",
+        }}>
+          {featuredArt && (
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "#ccc", marginBottom: 14 }}>
+                ✦ Art encounter
+              </div>
+              <img
+                src={featuredArt.photo_full_url || featuredArt.photo_thumb_url}
+                alt={featuredArt.title || "Art encounter"}
+                style={{ width: "100%", height: "auto", display: "block", borderRadius: 2, marginBottom: 14 }}
+              />
+              {(featuredArt.artist_name || featuredArt.title) && (
+                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, color: "#1a1a1a", marginBottom: 6 }}>
+                  {featuredArt.title && <span style={{ fontStyle: "italic" }}>{featuredArt.title}</span>}
+                  {featuredArt.artist_name && featuredArt.title && <span style={{ color: "#bbb" }}> — </span>}
+                  {featuredArt.artist_name && <span>{featuredArt.artist_name}</span>}
+                </div>
+              )}
+              {(featuredArt.venue_name || featuredArt.encountered_at) && (
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.07em", textTransform: "uppercase", color: "#bbb", marginBottom: 10 }}>
+                  {[featuredArt.venue_name, new Date(featuredArt.encountered_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })].filter(Boolean).join(" · ")}
+                </div>
+              )}
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontStyle: "italic", color: "#666", lineHeight: 1.6 }}>
+                "{featuredArt.emotional_reaction}"
+              </div>
+            </div>
+          )}
+
+          {featuredQuote && (
+            <div style={{ paddingTop: featuredArt ? 28 : 0 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "#ccc", marginBottom: 14 }}>
+                ✦ From your library
+              </div>
+              <blockquote style={{
+                margin: 0,
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 26,
+                fontStyle: "italic",
+                fontWeight: 400,
+                color: "#1a1a1a",
+                lineHeight: 1.55,
+              }}>
+                "{featuredQuote.text}"
+              </blockquote>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#aaa", marginTop: 16, letterSpacing: "0.04em" }}>
+                — {featuredQuote.author}{featuredQuote.source ? `, ${featuredQuote.source}` : ""}
+              </div>
+              {featuredQuote.tags?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 14 }}>
+                  {featuredQuote.tags.map(t => (
+                    <span key={t} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: "#bbb", border: "1px solid #ebebeb", padding: "2px 8px", borderRadius: 2 }}>{t}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Inline Ask */}
+      <div style={{ borderTop: "1px solid #e8e8e8", paddingTop: 48 }}>
+        <textarea
+          value={question}
+          onChange={e => setQuestion(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && e.metaKey && ask()}
+          placeholder="What's on your mind?"
+          rows={2}
+          style={{
+            width: "100%", border: "none", borderBottom: "2px solid #1a1a1a",
+            outline: "none", padding: "10px 0",
+            fontFamily: "'Cormorant Garamond', serif", fontSize: 26,
+            color: "#1a1a1a", background: "transparent",
+            resize: "none", boxSizing: "border-box", lineHeight: 1.4,
+          }}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
+          <button
+            onClick={ask}
+            disabled={loading || !question.trim()}
+            style={{
+              background: "#1a1a1a", color: "#fff", border: "none", padding: "12px 28px",
+              fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: "0.1em",
+              textTransform: "uppercase", cursor: "pointer", borderRadius: 2,
+              opacity: (loading || !question.trim()) ? 0.4 : 1, transition: "opacity 0.2s",
+            }}
+          >
+            {loading ? "Consulting..." : "Ask ↵"}
+          </button>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#ccc", letterSpacing: "0.06em" }}>
+            ⌘ + enter
+          </div>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: 20, color: "#c0392b", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>{error}</div>
+        )}
+
+        {answer && (
+          <div ref={answerRef} style={{ marginTop: 48 }}>
+            <div style={{ borderTop: "2px solid #1a1a1a", paddingTop: 28 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#999", marginBottom: 20 }}>
+                ✦ From your library
+              </div>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, lineHeight: 1.7, color: "#1a1a1a", whiteSpace: "pre-wrap" }}>
+                {answer.text}
+              </div>
+              {(answer.usedQuotes.length > 0 || answer.usedArt?.length > 0) && (
+                <div style={{ marginTop: 36 }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#bbb", marginBottom: 16 }}>
+                    Sources used
+                  </div>
+                  {answer.usedQuotes.map(q => (
+                    <div key={q.id} style={{ padding: "16px 0", borderTop: "1px solid #f0f0f0" }}>
+                      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 17, fontStyle: "italic", color: "#444", lineHeight: 1.55 }}>"{q.text}"</div>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#aaa", marginTop: 8, letterSpacing: "0.04em" }}>— {q.author}{q.source ? `, ${q.source}` : ""}</div>
+                    </div>
+                  ))}
+                  {answer.usedArt?.map(a => <ArtSource key={a.id} entry={a} />)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Landing View ────────────────────────────────────────────────────────────
 
 const GHOST_WORDS = [
@@ -649,7 +882,7 @@ export default function App() {
   const [showLanding, setShowLanding] = useState(true);
 
   const handleEnter = () => {
-    setView("add");
+    setView("home");
     setPhase("app");
     setTimeout(() => setShowLanding(false), 800);
   };
@@ -674,9 +907,9 @@ export default function App() {
   };
 
   const navItems = [
+    { key: "home", label: "Home" },
     { key: "library", label: "Library" },
     { key: "add", label: "Add Quote" },
-    { key: "ask", label: "Ask" },
     { key: "art", label: "Art" },
   ];
 
@@ -809,6 +1042,7 @@ export default function App() {
 
         {/* Main */}
         <main className="luminary-main" style={{ margin: "0 auto", padding: "48px 24px 96px", position: "relative", zIndex: 1 }}>
+          {view === "home" && <HomeView quotes={quotes} artEntries={artEntries} />}
           {view === "library" && <LibraryView quotes={quotes} onDelete={handleDelete} />}
           {view === "add" && <AddView onAdd={addQuote} />}
           {view === "ask" && <AskView quotes={quotes} artEntries={artEntries} />}

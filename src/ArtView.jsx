@@ -15,10 +15,10 @@ function ArtCard({ entry, onEdit, onDelete }) {
       onMouseLeave={() => setHovered(false)}
       style={{ position: "relative", borderTop: "1px solid #e8e8e8", paddingTop: 16 }}
     >
-      {entry.photo_thumb_url && (
+      {(entry.photo_full_url || entry.photo_thumb_url) && (
         <div style={{ position: "relative", marginBottom: 12 }}>
           <img
-            src={entry.photo_thumb_url}
+            src={entry.photo_full_url || entry.photo_thumb_url}
             alt={entry.title || "Art encounter"}
             style={{
               width: "100%", height: "auto", display: "block", borderRadius: 2,
