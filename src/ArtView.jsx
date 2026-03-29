@@ -1,6 +1,9 @@
 import { useState } from "react";
 import CaptureModal from "./CaptureModal.jsx";
+import MapView from "./MapView.jsx";
 import { deleteArtEntry } from "./artService.js";
+
+const PAGE_SIZE = 10;
 
 function ArtCard({ entry, onEdit, onDelete }) {
   const [hovered, setHovered] = useState(false);
@@ -102,10 +105,16 @@ function ArtCard({ entry, onEdit, onDelete }) {
 export default function ArtView({ entries, onEntryAdded, onEntryUpdated, onEntryDeleted }) {
   const [capturing, setCapturing] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.ceil(entries.length / PAGE_SIZE);
+  const pageEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleDelete = async (id) => {
     await deleteArtEntry(id);
     onEntryDeleted(id);
+    // If deleting last item on page, go back
+    if (pageEntries.length === 1 && page > 1) setPage(p => p - 1);
   };
 
   return (
@@ -154,15 +163,63 @@ export default function ArtView({ entries, onEntryAdded, onEntryUpdated, onEntry
 
       {/* Grid */}
       {entries.length > 0 && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-          gap: "32px 24px",
-        }}>
-          {entries.map(entry => (
-        <ArtCard key={entry.id} entry={entry} onEdit={setEditingEntry} onDelete={handleDelete} />
-      ))}
-        </div>
+        <>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: "32px 24px",
+          }}>
+            {pageEntries.map(entry => (
+              <ArtCard key={entry.id} entry={entry} onEdit={setEditingEntry} onDelete={handleDelete} />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 16, marginTop: 48,
+            }}>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={{
+                  background: "none", border: "none", cursor: page === 1 ? "default" : "pointer",
+                  fontFamily: "'DM Mono', monospace", fontSize: 10,
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: page === 1 ? "#ddd" : "#999",
+                  transition: "color 0.15s",
+                }}
+              >
+                ← prev
+              </button>
+              <span style={{
+                fontFamily: "'DM Mono', monospace", fontSize: 10,
+                letterSpacing: "0.06em", color: "#bbb",
+              }}>
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                style={{
+                  background: "none", border: "none", cursor: page === totalPages ? "default" : "pointer",
+                  fontFamily: "'DM Mono', monospace", fontSize: 10,
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: page === totalPages ? "#ddd" : "#999",
+                  transition: "color 0.15s",
+                }}
+              >
+                next →
+              </button>
+            </div>
+          )}
+
+          {/* Map */}
+          <div style={{ marginTop: 64, borderTop: "1px solid #e8e8e8", paddingTop: 48 }}>
+            <MapView artEntries={entries} />
+          </div>
+        </>
       )}
 
       {(capturing || editingEntry) && (
