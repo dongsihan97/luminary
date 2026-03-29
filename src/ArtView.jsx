@@ -123,7 +123,7 @@ export default function ArtView({ entries, onEntryAdded, onEntryUpdated, onEntry
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 36 }}>
         <div>
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "#1a1a1a" }}>
-            Art Encounters
+            Impressions
           </div>
           {entries.length > 0 && (
             <div style={{
@@ -153,7 +153,7 @@ export default function ArtView({ entries, onEntryAdded, onEntryUpdated, onEntry
       {entries.length === 0 && (
         <div style={{ textAlign: "center", padding: "80px 0", color: "#bbb" }}>
           <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontStyle: "italic", marginBottom: 8 }}>
-            No encounters yet.
+            No impressions yet.
           </div>
           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
             Capture something that moves you.

@@ -136,8 +136,9 @@ function QuoteCard({ quote, featured, onDelete }) {
 
 // ─── Views ───────────────────────────────────────────────────────────────────
 
-function LibraryView({ quotes, onDelete }) {
+function LibraryView({ quotes, onDelete, onAdd }) {
   const [filter, setFilter] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [randomQuote, setRandomQuote] = useState(null);
 
   useEffect(() => {
@@ -149,35 +150,77 @@ function LibraryView({ quotes, onDelete }) {
   const allTags = [...new Set(quotes.flatMap(q => q.tags || []))];
   const filtered = filter ? quotes.filter(q => q.tags?.includes(filter)) : quotes;
 
-  if (quotes.length === 0) {
-    return (
-      <div style={{ textAlign: "center", padding: "80px 0", color: "#bbb" }}>
-        <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontStyle: "italic", marginBottom: 8 }}>
-          Your library is empty.
-        </div>
-        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-          Add your first quote to begin.
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div>
-      {randomQuote && <QuoteCard quote={randomQuote} featured />}
+      {/* Top bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 36 }}>
+        <div>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, color: "#1a1a1a" }}>
+            Passages
+          </div>
+          {quotes.length > 0 && (
+            <div style={{
+              fontFamily: "'DM Mono', monospace", fontSize: 10,
+              letterSpacing: "0.06em", textTransform: "uppercase",
+              color: "#bbb", marginTop: 4,
+            }}>
+              {quotes.length} {quotes.length === 1 ? "passage" : "passages"}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => setShowAddForm(v => !v)}
+          style={{
+            background: showAddForm ? "none" : "#1a1a1a",
+            color: showAddForm ? "#aaa" : "#fff",
+            border: showAddForm ? "none" : "none",
+            padding: "10px 22px",
+            fontFamily: "'DM Mono', monospace", fontSize: 10,
+            letterSpacing: "0.1em", textTransform: "uppercase",
+            cursor: "pointer", borderRadius: 2,
+          }}
+        >
+          {showAddForm ? "Cancel" : "✦ Add"}
+        </button>
+      </div>
 
-      {allTags.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "20px 0", borderTop: "1px solid #e8e8e8" }}>
-          <Tag label="All" active={!filter} onClick={() => setFilter(null)} />
-          {allTags.map(t => (
-            <Tag key={t} label={t} active={filter === t} onClick={() => setFilter(filter === t ? null : t)} />
-          ))}
+      {/* Inline add form */}
+      {showAddForm && (
+        <div style={{ borderTop: "1px solid #e8e8e8", paddingTop: 32, marginBottom: 56 }}>
+          <AddView onAdd={(quote) => { onAdd(quote); setShowAddForm(false); }} />
         </div>
       )}
 
-      <div>
-        {filtered.map(q => <QuoteCard key={q.id} quote={q} onDelete={onDelete} />)}
-      </div>
+      {/* Empty state */}
+      {quotes.length === 0 && !showAddForm && (
+        <div style={{ textAlign: "center", padding: "80px 0", color: "#bbb" }}>
+          <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 22, fontStyle: "italic", marginBottom: 8 }}>
+            No passages yet.
+          </div>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            Add your first passage to begin.
+          </div>
+        </div>
+      )}
+
+      {quotes.length > 0 && (
+        <>
+          {randomQuote && <QuoteCard quote={randomQuote} featured />}
+
+          {allTags.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "20px 0", borderTop: "1px solid #e8e8e8" }}>
+              <Tag label="All" active={!filter} onClick={() => setFilter(null)} />
+              {allTags.map(t => (
+                <Tag key={t} label={t} active={filter === t} onClick={() => setFilter(filter === t ? null : t)} />
+              ))}
+            </div>
+          )}
+
+          <div>
+            {filtered.map(q => <QuoteCard key={q.id} quote={q} onDelete={onDelete} />)}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -503,7 +546,7 @@ ${artContext || "(none)"}`;
         <div ref={answerRef} style={{ marginTop: 48 }}>
           <div style={{ borderTop: "2px solid #1a1a1a", paddingTop: 28 }}>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#999", marginBottom: 20 }}>
-              ✦ From your library
+              ✦ From your passages
             </div>
             <div style={{
               fontFamily: "'Cormorant Garamond', serif",
@@ -636,76 +679,8 @@ ${artContext || "(none)"}`;
 
   return (
     <div>
-      {/* Featured pairing */}
-      {(featuredQuote || featuredArt) && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: hasBoth ? "repeat(auto-fit, minmax(280px, 1fr))" : "1fr",
-          gap: 48,
-          marginBottom: 72,
-          alignItems: "start",
-        }}>
-          {featuredArt && (
-            <div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "#ccc", marginBottom: 14 }}>
-                ✦ Art encounter
-              </div>
-              <img
-                src={featuredArt.photo_full_url || featuredArt.photo_thumb_url}
-                alt={featuredArt.title || "Art encounter"}
-                style={{ width: "100%", height: "auto", display: "block", borderRadius: 2, marginBottom: 14 }}
-              />
-              {(featuredArt.artist_name || featuredArt.title) && (
-                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, color: "#1a1a1a", marginBottom: 6 }}>
-                  {featuredArt.title && <span style={{ fontStyle: "italic" }}>{featuredArt.title}</span>}
-                  {featuredArt.artist_name && featuredArt.title && <span style={{ color: "#bbb" }}> — </span>}
-                  {featuredArt.artist_name && <span>{featuredArt.artist_name}</span>}
-                </div>
-              )}
-              {(featuredArt.venue_name || featuredArt.encountered_at) && (
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.07em", textTransform: "uppercase", color: "#bbb", marginBottom: 10 }}>
-                  {[featuredArt.venue_name, new Date(featuredArt.encountered_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })].filter(Boolean).join(" · ")}
-                </div>
-              )}
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontStyle: "italic", color: "#666", lineHeight: 1.6 }}>
-                "{featuredArt.emotional_reaction}"
-              </div>
-            </div>
-          )}
-
-          {featuredQuote && (
-            <div style={{ paddingTop: featuredArt ? 28 : 0 }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "#ccc", marginBottom: 14 }}>
-                ✦ From your library
-              </div>
-              <blockquote style={{
-                margin: 0,
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: 26,
-                fontStyle: "italic",
-                fontWeight: 400,
-                color: "#1a1a1a",
-                lineHeight: 1.55,
-              }}>
-                "{featuredQuote.text}"
-              </blockquote>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#aaa", marginTop: 16, letterSpacing: "0.04em" }}>
-                — {featuredQuote.author}{featuredQuote.source ? `, ${featuredQuote.source}` : ""}
-              </div>
-              {featuredQuote.tags?.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 14 }}>
-                  {featuredQuote.tags.map(t => (
-                    <span key={t} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: "#bbb", border: "1px solid #ebebeb", padding: "2px 8px", borderRadius: 2 }}>{t}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Inline Ask */}
-      <div style={{ borderTop: "1px solid #e8e8e8", paddingTop: 48 }}>
+      {/* Ask */}
+      <div style={{ marginBottom: 72 }}>
         <textarea
           value={question}
           onChange={e => setQuestion(e.target.value)}
@@ -746,7 +721,7 @@ ${artContext || "(none)"}`;
           <div ref={answerRef} style={{ marginTop: 48 }}>
             <div style={{ borderTop: "2px solid #1a1a1a", paddingTop: 28 }}>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "#999", marginBottom: 20 }}>
-                ✦ From your library
+                ✦ From your passages
               </div>
               <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 20, lineHeight: 1.7, color: "#1a1a1a", whiteSpace: "pre-wrap" }}>
                 {answer.text}
@@ -769,6 +744,75 @@ ${artContext || "(none)"}`;
           </div>
         )}
       </div>
+
+      {/* Featured pairing */}
+      {(featuredQuote || featuredArt) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: hasBoth ? "repeat(auto-fit, minmax(280px, 1fr))" : "1fr",
+          gap: 48,
+          borderTop: "1px solid #e8e8e8",
+          paddingTop: 72,
+          alignItems: "start",
+        }}>
+          {featuredArt && (
+            <div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "#ccc", marginBottom: 14 }}>
+                ✦ Impression
+              </div>
+              <img
+                src={featuredArt.photo_full_url || featuredArt.photo_thumb_url}
+                alt={featuredArt.title || "Art encounter"}
+                style={{ width: "100%", height: "auto", display: "block", borderRadius: 2, marginBottom: 14 }}
+              />
+              {(featuredArt.artist_name || featuredArt.title) && (
+                <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 16, color: "#1a1a1a", marginBottom: 6 }}>
+                  {featuredArt.title && <span style={{ fontStyle: "italic" }}>{featuredArt.title}</span>}
+                  {featuredArt.artist_name && featuredArt.title && <span style={{ color: "#bbb" }}> — </span>}
+                  {featuredArt.artist_name && <span>{featuredArt.artist_name}</span>}
+                </div>
+              )}
+              {(featuredArt.venue_name || featuredArt.encountered_at) && (
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.07em", textTransform: "uppercase", color: "#bbb", marginBottom: 10 }}>
+                  {[featuredArt.venue_name, new Date(featuredArt.encountered_at).toLocaleDateString("en-US", { month: "long", year: "numeric" })].filter(Boolean).join(" · ")}
+                </div>
+              )}
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 15, fontStyle: "italic", color: "#666", lineHeight: 1.6 }}>
+                "{featuredArt.emotional_reaction}"
+              </div>
+            </div>
+          )}
+
+          {featuredQuote && (
+            <div style={{ paddingTop: featuredArt ? 28 : 0 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "#ccc", marginBottom: 14 }}>
+                ✦ From your passages
+              </div>
+              <blockquote style={{
+                margin: 0,
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 26,
+                fontStyle: "italic",
+                fontWeight: 400,
+                color: "#1a1a1a",
+                lineHeight: 1.55,
+              }}>
+                "{featuredQuote.text}"
+              </blockquote>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#aaa", marginTop: 16, letterSpacing: "0.04em" }}>
+                — {featuredQuote.author}{featuredQuote.source ? `, ${featuredQuote.source}` : ""}
+              </div>
+              {featuredQuote.tags?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 14 }}>
+                  {featuredQuote.tags.map(t => (
+                    <span key={t} style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: "#bbb", border: "1px solid #ebebeb", padding: "2px 8px", borderRadius: 2 }}>{t}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -898,7 +942,7 @@ export default function App() {
   const addQuote = async (quote) => {
     await insertQuote(quote);
     setQuotes([quote, ...quotes]);
-    setView("library");
+    setView("passages");
   };
 
   const handleDelete = async (id) => {
@@ -907,10 +951,9 @@ export default function App() {
   };
 
   const navItems = [
-    { key: "home", label: "Home" },
-    { key: "library", label: "Library" },
-    { key: "add", label: "Add Quote" },
-    { key: "art", label: "Art" },
+    { key: "home", label: "Commune" },
+    { key: "passages", label: "Passages" },
+    { key: "impressions", label: "Impressions" },
   ];
 
   if (!loaded) {
@@ -1031,8 +1074,11 @@ export default function App() {
                   }}
                 >
                   {item.label}
-                  {item.key === "library" && quotes.length > 0 && (
+                  {item.key === "passages" && quotes.length > 0 && (
                     <span style={{ marginLeft: 6, fontSize: 9, opacity: 0.5 }}>{quotes.length}</span>
+                  )}
+                  {item.key === "impressions" && artEntries.length > 0 && (
+                    <span style={{ marginLeft: 6, fontSize: 9, opacity: 0.5 }}>{artEntries.length}</span>
                   )}
                 </button>
               ))}
@@ -1043,10 +1089,9 @@ export default function App() {
         {/* Main */}
         <main className="luminary-main" style={{ margin: "0 auto", padding: "48px 24px 96px", position: "relative", zIndex: 1 }}>
           {view === "home" && <HomeView quotes={quotes} artEntries={artEntries} />}
-          {view === "library" && <LibraryView quotes={quotes} onDelete={handleDelete} />}
-          {view === "add" && <AddView onAdd={addQuote} />}
+          {view === "passages" && <LibraryView quotes={quotes} onDelete={handleDelete} onAdd={addQuote} />}
           {view === "ask" && <AskView quotes={quotes} artEntries={artEntries} />}
-          {view === "art" && (
+          {view === "impressions" && (
             <ArtView
               entries={artEntries}
               onEntryAdded={(entry) => setArtEntries([entry, ...artEntries])}
